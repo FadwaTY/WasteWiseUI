@@ -1,6 +1,10 @@
+# .streamlit/config.toml
+
+
 [theme]
-primaryColor="666b6e"
-backgroundColor="#f5f7fa"
-secondaryBackgroundColor="#9dc8e4"
-textColor="#22223b"
-font="sans serif"
+base = "light"
+primaryColor = "#16A34A"          # emerald-600
+backgroundColor = "#F2F7F3"       # warm off-white with green tint
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#0B1324"
+font = "sans serif"

@@ -1,3 +1,5 @@
+export WW_BACKEND_URL=http://localhost:8000
+
 #======================#
 # Install, clean, test #
 #======================#
@@ -33,3 +35,6 @@ streamlit_local_docker:
 
 streamlit_cloud:
 	-@API_URI=cloud_api_uri streamlit run app.py
+
+serve:
+	streamlit run app.py --server.port 8501 --server.address 0.0.0.0

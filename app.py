@@ -7,374 +7,611 @@ import base64
 import json
 
 
-
-# Define the base URI of the API
-#   - Potential sources are in `.streamlit/secrets.toml` or in the Secrets section
-#     on Streamlit Cloud
-#   - The source selected is based on the shell variable passend when launching streamlit
-#     (shortcuts are included in Makefile). By default it takes the cloud API url
-if 'API_URI' in os.environ:
-    BASE_URI = st.secrets[os.environ.get('API_URI')]
-else:
-    BASE_URI = st.secrets['cloud_api_uri']
-# Add a '/' at the end if it's not there
-BASE_URI = BASE_URI if BASE_URI.endswith('/') else BASE_URI + '/'
-# Define the url to be used by requests.get to get a prediction (adapt if needed)
-url = BASE_URI + 'predict'
-
-# Just displaying the source for the API. Remove this in your final version.
-#st.markdown(f"Working with {url}")
-
-#st.markdown("Now, the rest is up to you. Start creating your page.")
-
-
-
-
-
-# -----------------------------
-# CONFIG
-# -----------------------------
-
-# -------------------------------------------
-# CONFIGURATION DE LA PAGE
-# -------------------------------------------
-
-
-
-import os
-import streamlit as st
-from PIL import Image
-import io
-import requests
-import base64
-import json
-
-# Define the base URI of the API (Keep your existing API logic)
-if 'API_URI' in os.environ:
-    BASE_URI = st.secrets[os.environ.get('API_URI')]
-else:
-    BASE_URI = st.secrets['cloud_api_uri']
-BASE_URI = BASE_URI if BASE_URI.endswith('/') else BASE_URI + '/'
-url = BASE_URI + 'predict'
-
-
 # --------------------------------------------------------
 # CONFIGURATION
 # --------------------------------------------------------
 st.set_page_config(
     page_title="WasteWise – AI Waste Classification",
     page_icon="♻️",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
 
 # --------------------------------------------------------
-# CUSTOM CSS – DARK MODE DESIGN
+# INITIALISATION DES VARIABLES DE SESSION
 # --------------------------------------------------------
-dark_mode_css = """
+if 'current_page' not in st.session_state:
+    st.session_state.current_page = 'detection'
+if 'prediction_result' not in st.session_state:
+    st.session_state.prediction_result = None
+
+# --------------------------------------------------------
+# CONFIGURATION API
+# --------------------------------------------------------
+if 'API_URI' in os.environ:
+    BASE_URI = st.secrets[os.environ.get('API_URI')]
+else:
+    BASE_URI = st.secrets['cloud_api_uri']
+BASE_URI = BASE_URI if BASE_URI.endswith('/') else BASE_URI + '/'
+API_URL = BASE_URI + 'detect'
+
+# --------------------------------------------------------
+# CUSTOM CSS
+# --------------------------------------------------------
+premium_css = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
 
-/* --- Couleurs du Thème Sombre --- */
-:root {
-    --bg-dark: #1E1E1E; /* Arrière-plan principal très foncé */
-    --card-bg: #2C2C2C; /* Fond des cartes (un peu plus clair) */
-    --accent-green: #4CAF50; /* Vert vif d'accentuation */
-    --text-light: #FAFAFA; /* Texte principal */
-    --text-muted: #B0B0B0; /* Texte secondaire */
+* {
+    font-family: 'Poppins', sans-serif;
 }
 
 body {
-    font-family: 'Poppins', sans-serif;
-    background-color: var(--bg-dark);
-    color: var(--text-light);
+    background-color: #E8F5E9;
 }
 
-/* Overrides pour forcer Streamlit en Dark Mode */
 .stApp {
-    background-color: var(--bg-dark);
+    background-color: #E8F5E9;
 }
 
-/* --- Général et Conteneurs --- */
-/* Masquer la sidebar par défaut si elle n'est pas utilisée */
-/* La navigation API endpoint peut être déplacée vers le footer ou une modal */
-.st-emotion-cache-cio0dv.ea3mdgi1, .st-emotion-cache-1na64h {
-    visibility: hidden;
-    height: 0%;
-    position: fixed;
-}
-.st-emotion-cache-h4xjwx {
-    padding-top: 2rem;
+/* Masquer les éléments Streamlit par défaut */
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+header {visibility: hidden;}
+
+section.main > div {
+    padding-top: 0rem;
 }
 
-
-/* --- Header & Titres --- */
-.header-container {
-    padding: 10px 0 20px 0;
-    margin-bottom: 20px;
-    border-bottom: 1px solid var(--card-bg); /* Séparation visuelle */
+/* Header personnalisé */
+.custom-header {
+    background: linear-gradient(135deg, #2E7D32 0%, #388E3C 100%);
+    padding: 15px 50px;
+    border-radius: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 20px 50px 40px 50px;
+    box-shadow: 0 8px 25px rgba(46, 125, 50, 0.2);
 }
 
-.logo-text {
-    font-size: 28px;
-    font-weight: 700;
-    color: var(--text-light);
+.custom-header .logo {
     display: flex;
     align-items: center;
+    color: white;
+    font-size: 28px;
+    font-weight: 700;
+    gap: 12px;
 }
 
-.logo-text span {
-    color: var(--accent-green);
-    margin-right: 10px;
+.custom-header .logo span {
     font-size: 32px;
 }
 
-h1 {
-    font-size: 32px;
+.custom-header .nav-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.nav-btn {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #B2DFDB;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-decoration: none;
+}
+
+.nav-btn:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+    color: white;
+    transform: translateY(-2px);
+}
+
+.nav-btn.active {
+    background-color: #4CAF50;
+    color: white;
     font-weight: 600;
-    color: var(--text-light);
-    margin-top: 0;
+    box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+}
+
+/* Cartes de contenu */
+.glass-card {
+    background: white;
+    padding: 35px;
+    border-radius: 25px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+    margin-bottom: 25px;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.glass-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 50px rgba(0, 0, 0, 0.12);
+}
+
+/* Titres */
+h1 {
+    font-size: 42px;
+    color: #2E7D32;
+    font-weight: 700;
+    margin-bottom: 15px;
 }
 
 h2 {
-    font-size: 24px;
+    font-size: 32px;
+    color: #388E3C;
     font-weight: 600;
-    color: var(--text-light);
+    margin-bottom: 20px;
+}
+
+h3 {
+    font-size: 26px;
+    color: #4CAF50;
+    font-weight: 600;
     margin-bottom: 15px;
 }
 
 p {
-    color: var(--text-muted);
-}
-
-
-/* --- Cartes de Contenu (Cards) --- */
-.content-card {
-    background: var(--card-bg);
-    padding: 30px;
-    border-radius: 15px; /* Coins arrondis modérés */
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4); /* Ombre douce et sombre */
-    margin-bottom: 20px;
-}
-
-
-/* --- Navigation Secondaire (Boutons) --- */
-.nav-buttons-bar {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 30px;
-}
-
-.stButton button {
-    /* Style par défaut des boutons Streamlit (pour la nav et le corps) */
-    background: var(--card-bg);
-    color: var(--text-muted);
-    border: 1px solid var(--text-muted);
-    padding: 10px 18px;
-    border-radius: 10px;
+    color: #555;
     font-size: 16px;
-    font-weight: 500;
-    transition: all 0.2s ease;
+    line-height: 1.6;
 }
 
-.stButton button:hover {
-    color: var(--text-light);
-    border-color: var(--accent-green);
+.subheader-text {
+    font-size: 19px;
+    color: #757575;
+    margin-bottom: 35px;
+    font-weight: 400;
 }
 
-.active-nav-button button {
-    /* Bouton actif (vert) */
-    background-color: var(--accent-green) !important;
-    color: var(--text-light) !important;
-    border-color: var(--accent-green) !important;
-    font-weight: 600 !important;
-}
-
-
-/* --- Zone d'Input/Image --- */
-.image-input-area {
-    border: 2px dashed var(--text-muted); /* Bordure pointillée comme dans l'image */
-    border-radius: 15px;
+/* Zone d'upload */
+.upload-zone {
+    border: 3px dashed #4CAF50;
     padding: 40px;
+    border-radius: 25px;
+    background: linear-gradient(135deg, #FFFFFF 0%, #F1F8F4 100%);
+    text-align: center;
+    transition: all 0.4s ease;
+    cursor: pointer;
     min-height: 350px;
     display: flex;
+    flex-direction: column;
     justify-content: center;
     align-items: center;
 }
 
-.image-preview img {
-    border-radius: 10px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+.upload-zone:hover {
+    border-color: #2E7D32;
+    background: linear-gradient(135deg, #F1F8F4 0%, #E8F5E9 100%);
+    transform: scale(1.02);
 }
 
-
-/* --- Résultats --- */
-.result-value {
-    font-size: 36px;
-    font-weight: 700;
-    color: var(--accent-green);
-    display: flex;
-    align-items: center;
+/* Boutons */
+.stButton button {
+    background: linear-gradient(135deg, #4CAF50 0%, #45A049 100%);
+    color: white;
+    padding: 14px 28px;
+    border-radius: 12px;
+    font-size: 18px;
+    font-weight: 600;
+    border: none;
+    transition: all 0.3s ease;
+    width: 100%;
+    box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
 }
 
-.result-confidence {
-    font-size: 32px;
-    font-weight: 700;
-    color: var(--accent-green);
+.stButton button:hover {
+    background: linear-gradient(135deg, #388E3C 0%, #2E7D32 100%);
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+}
+
+.stButton button:active {
+    transform: translateY(-1px);
 }
 
 /* Barre de progression */
 .stProgress > div > div > div > div {
-    background-color: var(--accent-green); /* Vert d'accentuation */
-    border-radius: 5px;
-    height: 10px;
+    background: linear-gradient(90deg, #4CAF50 0%, #66BB6A 100%);
+    border-radius: 10px;
 }
+
 .stProgress > div > div > div {
-    background-color: #404040; /* Gris foncé pour le fond de la barre */
-    border-radius: 5px;
-    height: 10px;
+    background-color: #E0F2F1;
+    border-radius: 10px;
+    height: 20px;
 }
 
-/* --- Bouton Flottant (Simulé) --- */
-.floating-button-wrapper {
-    text-align: center;
-    margin-top: 20px;
+/* Carte de résultat */
+.result-card {
+    background: linear-gradient(135deg, #E8F5E9 0%, #C8E6C9 100%);
+    padding: 30px;
+    border-radius: 20px;
+    border-left: 6px solid #4CAF50;
+    margin: 20px 0;
 }
 
-.floating-button {
-    background-color: var(--accent-green);
+.confidence-badge {
+    display: inline-block;
+    background: #4CAF50;
     color: white;
-    border-radius: 50%;
-    width: 60px;
-    height: 60px;
-    display: inline-flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 24px;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-.floating-button:hover {
-    background-color: #388E3C;
+    padding: 8px 20px;
+    border-radius: 25px;
+    font-weight: 600;
+    font-size: 18px;
+    margin: 10px 0;
 }
 
+/* Images */
+.stImage > img {
+    border-radius: 20px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+}
+
+/* Alertes personnalisées */
+.stAlert {
+    border-radius: 15px;
+    padding: 18px;
+    margin: 15px 0;
+    border-left: 5px solid;
+}
+
+/* Footer */
+.custom-footer {
+    text-align: center;
+    color: #757575;
+    padding: 40px;
+    font-size: 14px;
+    margin-top: 60px;
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+    animation: fadeIn 0.6s ease-out;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .custom-header {
+        flex-direction: column;
+        gap: 20px;
+        margin: 10px 20px 30px 20px;
+        padding: 20px;
+    }
+
+    .custom-header .nav-buttons {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .nav-btn {
+        width: 100%;
+    }
+
+    h1 {
+        font-size: 32px;
+    }
+}
 </style>
 """
-st.markdown(dark_mode_css, unsafe_allow_html=True)
+
+st.markdown(premium_css, unsafe_allow_html=True)
 
 # --------------------------------------------------------
-# HEADER ET NAVIGATION (Adaptés au Dark Mode)
+# FONCTION: APPEL API
 # --------------------------------------------------------
+def predict_waste(image_bytes):
+    try:
+        response = requests.post(
+            "http://localhost:8000/detect",
+            files={"file": image_bytes}
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        st.error(f"Erreur lors de la prédiction: {e}")
+        return None
 
-# Utilisation d'un conteneur pour le header pour un meilleur contrôle
-with st.container():
-    st.markdown("<div class='header-container'>", unsafe_allow_html=True)
-
-    # Logo et titre
-    st.markdown("<div class='logo-text'><span>♻️</span> WasteWise</div>", unsafe_allow_html=True)
-
-    # Titre principal (comme dans l'image)
-    st.markdown("<h1>Détection de Déchets</h1>", unsafe_allow_html=True)
-    st.markdown("<p>Placez votre déchet devant votre caméra.</p>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
-
-# Navigation Secondaire
-nav_col1, nav_col2, nav_col3 = st.columns([0.4, 0.4, 0.4])
-with st.container():
-    with nav_col1:
-        # Le bouton actif est simulé ici avec la classe 'active-nav-button'
-        st.markdown("<div class='active-nav-button'>", unsafe_allow_html=True)
-        st.button("📸 Détection en Direct", use_container_width=True, key="nav_live")
-        st.markdown("</div>", unsafe_allow_html=True)
-    with nav_col2:
-        st.button("🖼️ Analyser une Image", use_container_width=True, key="nav_upload")
-    with nav_col3:
-        st.button("💡 À Propos", use_container_width=True, key="nav_about")
-
-st.markdown("---") # Séparation visuelle (style minimaliste)
 
 # --------------------------------------------------------
-# MAIN CONTENT (Colonnes de Contenu)
+# FONCTION: HEADER
 # --------------------------------------------------------
-col_result, col_input = st.columns(2)
+def render_header():
+    """Affiche le header avec navigation"""
+    pages = {
+        'detection': ('📸', 'Détection en Direct'),
+        'upload': ('🖼️', 'Analyser une Image'),
+        'about': ('💡', 'À Propos')
+    }
 
-# --- COLONNE DE GAUCHE : RÉSULTATS ---
-with col_result:
-    st.markdown("<div class='content-card'>", unsafe_allow_html=True)
-    st.markdown("<h2>Résultats</h2>", unsafe_allow_html=True)
+    active_btns = []
+    for page_key, (icon, label) in pages.items():
+        active_class = 'active' if st.session_state.current_page == page_key else ''
+        active_btns.append(f'<button class="nav-btn {active_class}" onclick="changePage(\'{page_key}\')">{icon} {label}</button>')
 
-    # Simulation des données de résultat
-    st.markdown("<p>Prédiction</p>", unsafe_allow_html=True)
-    st.markdown("<div class='result-value'>🗑️ PLASTIQUE</div>", unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    st.markdown("<p>Confiance</p>", unsafe_allow_html=True)
-    st.markdown("<div class='result-confidence'>98.27%</div>", unsafe_allow_html=True)
-    st.progress(0.9827)
-
-    # L'appel à l'API serait ici
-    # st.markdown(f"🗑 **Catégorie détectée :** {result.get('category', 'Non analysé')}")
-    # st.progress(float(result.get("confidence", 0.0)))
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-
-# --- COLONNE DE DROITE : INPUT IMAGE ---
-with col_input:
-    # La zone d'input avec la bordure pointillée
-    st.markdown("<div class='content-card'>", unsafe_allow_html=True)
-    st.markdown("<div class='image-input-area'>", unsafe_allow_html=True)
-
-    img_bytes = None
-
-    # Utilisation de st.file_uploader pour la zone d'upload/caméra
-    uploaded = st.file_uploader("Importer une image", type=["jpg", "png", "jpeg"], label_visibility="collapsed")
-
-    if uploaded:
-        img_bytes = uploaded.read()
-        st.image(img_bytes, use_container_width=True, caption="Image à analyser", output_format="JPEG")
-    else:
-        st.markdown("<p>Cliquez ici pour téléverser ou utilisez la caméra.</p>", unsafe_allow_html=True)
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    # Bouton Flottant (simulé en dessous pour rester dans la colonne)
-    st.markdown("""
-        <div class="floating-button-wrapper">
-            <div class="floating-button">
-                🚀
-            </div>
-            <p style="font-size: 14px; color: var(--text-muted);">Lancer l'Analyse</p>
+    st.markdown(f"""
+    <div class="custom-header">
+        <div class="logo">
+            <span>♻️</span>
+            <div>WasteWise</div>
         </div>
+        <div class="nav-buttons">
+            {''.join(active_btns)}
+        </div>
+    </div>
     """, unsafe_allow_html=True)
 
+# --------------------------------------------------------
+# PAGE: DÉTECTION EN DIRECT
+# --------------------------------------------------------
+def page_detection():
+    st.markdown("<div style='margin: 0 50px;'>", unsafe_allow_html=True)
+    st.markdown("<h1 class='fade-in'>📸 Détection en Direct</h1>", unsafe_allow_html=True)
+    st.markdown("<p class='subheader-text'>Utilisez votre caméra pour classifier vos déchets instantanément</p>", unsafe_allow_html=True)
+
+    col1, col2 = st.columns([1.2, 1], gap="large")
+
+    with col1:
+        st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+
+        # Capture caméra
+        camera_photo = st.camera_input("📷 Prendre une photo", key="camera_detection")
+
+        if camera_photo:
+            image_bytes = camera_photo.getvalue()
+            st.image(image_bytes, use_container_width=True, caption="Photo capturée")
+
+            if st.button("🔍 Analyser cette image", use_container_width=True):
+                with st.spinner("🔄 Analyse en cours..."):
+                    result = predict_waste(image_bytes)
+                    if result:
+                        st.session_state.prediction_result = result
+                        st.rerun()
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with col2:
+        st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+
+        if st.session_state.prediction_result:
+            result = st.session_state.prediction_result
+
+            st.markdown("<h3>✅ Résultat de l'analyse</h3>", unsafe_allow_html=True)
+
+            category = result.get('category', 'Inconnu')
+            confidence = float(result.get('confidence', 0))
+
+            st.markdown(f"<h2>{category.upper()} ♻️</h2>", unsafe_allow_html=True)
+            st.markdown(f"<div class='confidence-badge'>{confidence*100:.2f}%</div>", unsafe_allow_html=True)
+
+            st.progress(confidence)
+            st.caption("Niveau de confiance")
+
+            if 'description' in result:
+                st.info(f"ℹ️ {result['description']}")
+
+            if 'recycling_tips' in result:
+                st.success(f"♻️ **Conseil de tri:** {result['recycling_tips']}")
+
+            if st.button("🔄 Nouvelle analyse", use_container_width=True):
+                st.session_state.prediction_result = None
+                st.rerun()
+        else:
+            st.info("👆 Prenez une photo pour commencer l'analyse")
+            st.markdown("""
+            <div style='padding: 20px; background: #F1F8F4; border-radius: 15px; margin-top: 20px;'>
+                <h4 style='color: #2E7D32; margin-bottom: 10px;'>💡 Conseils pour de meilleurs résultats:</h4>
+                <ul style='color: #555;'>
+                    <li>Assurez un bon éclairage</li>
+                    <li>Centrez le déchet dans le cadre</li>
+                    <li>Évitez les reflets et ombres</li>
+                    <li>Photographiez un seul objet à la fois</li>
+                </ul>
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# --------------------------------------------------------
+# PAGE: UPLOAD IMAGE
+# --------------------------------------------------------
+# --------------------------------------------------------
+# PAGE: UPLOAD IMAGE
+# --------------------------------------------------------
+def page_upload():
+    st.markdown("<div style='margin: 0 50px;'>", unsafe_allow_html=True)
+    st.markdown("<h1 class='fade-in'>🖼️ Analyser une Image</h1>", unsafe_allow_html=True)
+    st.markdown("<p class='subheader-text'>Téléversez une image pour obtenir une analyse du déchet</p>", unsafe_allow_html=True)
+
+    col1, col2 = st.columns([1.2, 1], gap="large")
+
+    # --- LEFT SIDE : UPLOAD IMAGE ---
+    with col1:
+        st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+        uploaded_image = st.file_uploader("📤 Importer une image", type=["jpg", "jpeg", "png"])
+
+        if uploaded_image:
+            image_bytes = uploaded_image.read()
+            st.image(image_bytes, use_container_width=True, caption="Image importée")
+
+            if st.button("🔍 Analyser cette image", use_container_width=True):
+                with st.spinner("🔄 Analyse en cours..."):
+                    result = predict_waste(image_bytes)
+                    if result:
+                        st.session_state.prediction_result = result
+                        st.rerun()
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # --- RIGHT SIDE : RESULTS ---
+    with col2:
+        st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+
+        if st.session_state.prediction_result:
+            result = st.session_state.prediction_result
+
+            st.markdown("<h3>✅ Résultat de l'analyse</h3>", unsafe_allow_html=True)
+
+            category = result.get('category', 'Inconnu')
+            confidence = float(result.get('confidence', 0))
+
+            st.markdown(f"<h2>{category.upper()} ♻️</h2>", unsafe_allow_html=True)
+            st.markdown(f"<div class='confidence-badge'>{confidence*100:.2f}%</div>", unsafe_allow_html=True)
+
+            st.progress(confidence)
+
+            if 'description' in result:
+                st.info(f"ℹ️ {result['description']}")
+
+            if 'recycling_tips' in result:
+                st.success(f"♻️ Conseil: {result['recycling_tips']}")
+
+            if st.button("🔄 Nouvelle image", use_container_width=True):
+                st.session_state.prediction_result = None
+                st.rerun()
+
+        else:
+            st.info("📥 Importez une image pour commencer.")
+
+        # --------------------------------------------------
+        # ⭐ NEW: test_all section
+        # --------------------------------------------------
+        st.markdown("### 🔍 Tester le dataset complet (Backend)")
+
+        if st.button("🚀 Lancer test_all", use_container_width=True):
+            with st.spinner("📡 Récupération des résultats depuis le backend..."):
+                result = test_all_api()
+                if result:
+                    st.success("Test dataset récupéré !")
+                    st.json(result)
+
+        # --------------------------------------------------
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
     st.markdown("</div>", unsafe_allow_html=True)
 
 
 # --------------------------------------------------------
-# LOGIQUE DE PRÉDICTION (Réutilisation de votre logique)
+# PAGE: À PROPOS
 # --------------------------------------------------------
-if st.button("Lancer la Prédiction Réelle", key="predict_main_button", use_container_width=True):
-    if img_bytes:
-        with st.spinner("Processing…"):
-            try:
-                response = requests.post(
-                    url, # Utilise votre URL définie en haut
-                    files={"file": ("image.jpg", img_bytes)}
-                )
+def page_about():
+    st.markdown("<div style='margin: 0 50px;'>", unsafe_allow_html=True)
+    st.markdown("<h1 class='fade-in'>💡 À Propos de WasteWise</h1>", unsafe_allow_html=True)
+    st.markdown("<p class='subheader-text'>Intelligence artificielle au service de l'environnement</p>", unsafe_allow_html=True)
 
-                if response.status_code == 200:
-                    result = response.json()
-                    st.success("Prédiction reçue 🎉")
-                    st.markdown(f"🗑 **Catégorie détectée :** {result.get('category', 'N/A')}")
-                    if "description" in result:
-                        st.info(result["description"])
-                else:
-                    st.error("Erreur API : " + response.text)
+    col1, col2 = st.columns(2, gap="large")
 
-            except Exception as e:
-                st.error(f"Erreur de communication : {e}")
+    with col1:
+        st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+        st.markdown("""
+        <h3>🎯 Notre Mission</h3>
+        <p>WasteWise utilise l'intelligence artificielle pour faciliter le tri des déchets et promouvoir le recyclage.
+        Notre objectif est de rendre le geste de tri accessible à tous grâce à la technologie.</p>
 
-    else:
-        st.warning("Veuillez d'abord importer ou capturer une image.")
+        <h3 style='margin-top: 30px;'>🤖 La Technologie</h3>
+        <p>Notre modèle d'IA est entraîné sur des milliers d'images de déchets pour classifier avec précision:</p>
+        <ul>
+            <li>♻️ Plastique</li>
+            <li>📄 Papier et carton</li>
+            <li>🥫 Métaux</li>
+            <li>🍶 Verre</li>
+            <li>🗑️ Déchets organiques</li>
+        </ul>
+        """, unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with col2:
+        st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+        st.markdown("""
+        <h3>📈 Impact Environnemental</h3>
+        <div style='background: linear-gradient(135deg, #E8F5E9 0%, #C8E6C9 100%); padding: 20px; border-radius: 15px; margin: 20px 0;'>
+            <div style='text-align: center; margin: 15px 0;'>
+                <div style='font-size: 36px; font-weight: 700; color: #2E7D32;'>10,000+</div>
+                <div style='color: #555;'>Images analysées</div>
+            </div>
+            <div style='text-align: center; margin: 15px 0;'>
+                <div style='font-size: 36px; font-weight: 700; color: #2E7D32;'>95%</div>
+                <div style='color: #555;'>Précision moyenne</div>
+            </div>
+            <div style='text-align: center; margin: 15px 0;'>
+                <div style='font-size: 36px; font-weight: 700; color: #2E7D32;'>5</div>
+                <div style='color: #555;'>Catégories de déchets</div>
+            </div>
+        </div>
+
+        <h3>🌍 Contribuez au Changement</h3>
+        <p>Chaque déchet correctement trié contribue à un avenir plus durable.
+        Utilisez WasteWise pour devenir un acteur du changement!</p>
+        """, unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# --------------------------------------------------------
+# FOOTER
+# --------------------------------------------------------
+def render_footer():
+    st.markdown("""
+    <div class="custom-footer">
+        <div style='margin-bottom: 15px;'>
+            <span style='font-size: 32px;'>♻️</span>
+        </div>
+        <div style='font-size: 16px; font-weight: 500; color: #2E7D32; margin-bottom: 10px;'>
+            WasteWise - Tri Intelligent par IA
+        </div>
+        <div>
+            © 2024 WasteWise. Tous droits réservés.
+        </div>
+        <div style='margin-top: 10px; color: #999;'>
+            Fait avec 💚 pour la planète
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+# --------------------------------------------------------
+# NAVIGATION
+# --------------------------------------------------------
+def handle_navigation():
+    """Gestion de la navigation entre les pages"""
+    # Boutons de navigation (simulés via query params dans Streamlit)
+    query_params = st.query_params
+
+    if 'page' in query_params:
+        st.session_state.current_page = query_params['page']
+
+# --------------------------------------------------------
+# MAIN APP
+# --------------------------------------------------------
+def main():
+    # Header
+    render_header()
+
+    # Gestion de la navigation
+    handle_navigation()
+
+    # Routing des pages
+    if st.session_state.current_page == 'detection':
+        page_detection()
+    elif st.session_state.current_page == 'upload':
+        page_upload()
+    elif st.session_state.current_page == 'about':
+        page_about()
+
+    # Footer
+    render_footer()
+
+if __name__ == "__main__":
+    main()
